@@ -1,16 +1,25 @@
-<!-- SKILL_AUTO_TRIGGER: package, documentation, examples, dependency, search, swift, framework, library, alamofire, combine, composable, tca, swiftui, swift-argument-parser, nio, yams, nix, carthage, cocoapods, spm, manifest, Package.swift -->
+---
+name: scully
+description: Search third-party Swift package documentation and SPM dependencies. Use for Package.swift analysis, Alamofire, swift-nio, Yams, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, or asking about third-party library usage patterns. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
+allowed-tools: Bash, Read, Glob, Grep, WebFetch
+---
 
 # Scully - Swift Package Documentation Tool
 
 Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It works both as a CLI tool and as a Claude Code skill for intelligent documentation discovery.
 
-**Auto-triggers on:**
-- Package documentation questions ("What does X do?")
-- Package discovery requests ("Find examples of X")
-- Dependency exploration ("Show me how to use X")
-- Swift package ecosystem questions
-- Requests mentioning specific packages (Alamofire, Combine, ComposableArchitecture, etc.)
-- Search recommendations ("use scully for search if needed")
+**Automatically triggered for:**
+- ✅ Third-party package questions ("What does Alamofire do?" "How do I use Yams?")
+- ✅ SPM dependency exploration ("Analyze Package.swift" "List dependencies")
+- ✅ Non-Apple library research ("Find swift-nio examples" "ComposableArchitecture patterns")
+- ✅ Dependency version management ("What versions does swift-argument-parser support?")
+- ✅ Package integration patterns ("How do X and Y third-party libs work together?")
+- ✅ Direct scully recommendations ("use scully for search if needed")
+
+**Does NOT trigger for:**
+- ❌ Apple frameworks (SwiftUI, Combine as Apple API) → use sosumi instead
+- ❌ WWDC sessions or Apple documentation → use sosumi instead
+- ❌ iOS SDK APIs → use sosumi instead
 
 ## Capabilities
 
