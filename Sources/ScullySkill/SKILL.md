@@ -1,6 +1,6 @@
 ---
 name: scully
-description: Search third-party Swift package documentation and SPM dependencies. Use for Package.swift analysis, ComposableArchitecture (TCA), Alamofire, swift-nio, Yams, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, asking about third-party library patterns, or requesting information about TCA and non-Apple frameworks. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
+description: Search third-party Swift package documentation and SPM dependencies from Tuist Registry and Swift Package Index. Use for Package.swift analysis, ComposableArchitecture (TCA), Alamofire, RxSwift, Kingfisher, Apollo-iOS, swift-nio, SwiftyBeaver, Nimble, Point-Free, Yams, async-http-client, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, asking about third-party library patterns, or requesting information about TCA, networking libraries, reactive programming, GraphQL, image handling, or other non-Apple frameworks. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
 allowed-tools: Bash, Read, Glob, Grep, WebFetch
 ---
 
@@ -9,12 +9,14 @@ allowed-tools: Bash, Read, Glob, Grep, WebFetch
 Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It works both as a CLI tool and as a Claude Code skill for intelligent documentation discovery.
 
 **Automatically triggered for:**
-- ✅ Third-party package questions ("What does Alamofire do?" "How do I use Yams?")
-- ✅ SPM dependency exploration ("Analyze Package.swift" "List dependencies")
-- ✅ Non-Apple library research ("Find swift-nio examples" "ComposableArchitecture patterns")
+- ✅ Third-party package questions ("What does Alamofire do?" "How do I use Yams?" "RxSwift tutorials?" "Apollo-iOS GraphQL?")
+- ✅ SPM dependency exploration ("Analyze Package.swift" "List dependencies" "Check Tuist Registry packages")
+- ✅ Non-Apple library research ("Find swift-nio examples" "ComposableArchitecture patterns" "Point-Free guides" "async-http-client setup")
+- ✅ Popular libraries ("Kingfisher caching" "SwiftyBeaver logging" "Nimble testing" "RxSwift reactive patterns")
+- ✅ Modern Swift packages ("async-http-client for networking" "apollo-ios for GraphQL" "kingdom patterns")
 - ✅ Dependency version management ("What versions does swift-argument-parser support?")
 - ✅ Package integration patterns ("How do X and Y third-party libs work together?")
-- ✅ Direct scully recommendations ("use scully for search if needed")
+- ✅ Direct scully recommendations ("use scully for search if needed" "check scully for TCA docs")
 
 **Does NOT trigger for:**
 - ❌ Apple frameworks (SwiftUI, Combine as Apple API) → use sosumi instead
