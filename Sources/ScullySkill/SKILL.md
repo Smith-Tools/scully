@@ -37,28 +37,28 @@ Use scully directly from the command line:
 
 ```bash
 # List all dependencies in current project
-scully list
+scully list-command
 
 # Get detailed dependency listing with versions and URLs
-scully list --detailed
+scully list-command --detailed
 
 # Access documentation for a specific package
-scully docs Alamofire
+scully docs-command Alamofire
 
 # Find code examples for a package
-scully examples Combine
+scully examples-command Combine
 
 # Find examples with a specific keyword
-scully examples Combine --filter "error handling"
+scully examples-command Combine --filter "error handling"
 
 # Generate a summary of package documentation
-scully summary SwiftCharts
+scully summary-command SwiftCharts
 
 # Extract common usage patterns
-scully patterns ComposableArchitecture
+scully patterns-command ComposableArchitecture
 
 # Filter patterns by frequency threshold
-scully patterns ComposableArchitecture --threshold 5
+scully patterns-command ComposableArchitecture --threshold 5
 ```
 
 ### Integration with Smith Tools Workflow
@@ -70,11 +70,11 @@ Use scully in combination with smith tools:
 smith dependencies /path/to/project
 
 # Step 2: Use scully CLI to explore packages
-scully list --detailed
+scully list-command --detailed
 
 # Step 3: Get documentation for packages of interest
-scully docs ComposableArchitecture
-scully examples ComposableArchitecture
+scully docs-command ComposableArchitecture
+scully examples-command ComposableArchitecture
 
 # Alternative in Claude Code: Ask about packages
 # "What does ComposableArchitecture provide?"
