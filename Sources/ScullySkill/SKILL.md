@@ -1,6 +1,6 @@
 ---
 name: scully
-description: Search third-party Swift package documentation and SPM dependencies. Use for Package.swift analysis, Alamofire, swift-nio, Yams, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, or asking about third-party library usage patterns. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
+description: Search third-party Swift package documentation and SPM dependencies. Use for Package.swift analysis, ComposableArchitecture (TCA), Alamofire, swift-nio, Yams, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, asking about third-party library patterns, or requesting information about TCA and non-Apple frameworks. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
 allowed-tools: Bash, Read, Glob, Grep, WebFetch
 ---
 
