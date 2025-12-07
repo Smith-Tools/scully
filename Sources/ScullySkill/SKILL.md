@@ -1,6 +1,6 @@
-# Scully - Swift Package Documentation Skill
+# Scully - Swift Package Documentation Tool
 
-Scully is a Claude Code skill that provides comprehensive Swift package documentation and usage examples. It auto-triggers when you ask questions about packages and their capabilities.
+Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It works both as a CLI tool and as a Claude Code skill for intelligent documentation discovery.
 
 ## Capabilities
 
@@ -13,7 +13,7 @@ Scully is a Claude Code skill that provides comprehensive Swift package document
 
 ## Usage Examples
 
-### As a Claude Code Skill (Recommended)
+### As a Claude Code Skill (Recommended in Claude Code)
 
 Scully auto-triggers when you ask questions about packages:
 
@@ -31,19 +31,54 @@ Scully auto-triggers when you ask questions about packages:
   → scully auto-triggers with capability check
 ```
 
+### As a CLI Tool (Recommended in terminal)
+
+Use scully directly from the command line:
+
+```bash
+# List all dependencies in current project
+scully list
+
+# Get detailed dependency listing with versions and URLs
+scully list --detailed
+
+# Access documentation for a specific package
+scully docs Alamofire
+
+# Find code examples for a package
+scully examples Combine
+
+# Find examples with a specific keyword
+scully examples Combine --filter "error handling"
+
+# Generate a summary of package documentation
+scully summary SwiftCharts
+
+# Extract common usage patterns
+scully patterns ComposableArchitecture
+
+# Filter patterns by frequency threshold
+scully patterns ComposableArchitecture --threshold 5
+```
+
 ### Integration with Smith Tools Workflow
 
-Use scully skill in combination with smith:
+Use scully in combination with smith tools:
 
 ```bash
 # Step 1: See which packages your project uses
 smith dependencies /path/to/project
 
-# Step 2: Ask about a package (scully auto-triggers)
-"What does ComposableArchitecture provide?"
+# Step 2: Use scully CLI to explore packages
+scully list --detailed
 
-# Step 3: Get package documentation and examples from scully skill
-# (Returns: capabilities, examples, usage patterns, integration guides)
+# Step 3: Get documentation for packages of interest
+scully docs ComposableArchitecture
+scully examples ComposableArchitecture
+
+# Alternative in Claude Code: Ask about packages
+# "What does ComposableArchitecture provide?"
+# (scully skill auto-triggers automatically)
 ```
 
 ## Data Sources
