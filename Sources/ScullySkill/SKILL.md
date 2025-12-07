@@ -1,6 +1,16 @@
+<!-- SKILL_AUTO_TRIGGER: package, documentation, examples, dependency, search, swift, framework, library, alamofire, combine, composable, tca, swiftui, swift-argument-parser, nio, yams, nix, carthage, cocoapods, spm, manifest, Package.swift -->
+
 # Scully - Swift Package Documentation Tool
 
 Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It works both as a CLI tool and as a Claude Code skill for intelligent documentation discovery.
+
+**Auto-triggers on:**
+- Package documentation questions ("What does X do?")
+- Package discovery requests ("Find examples of X")
+- Dependency exploration ("Show me how to use X")
+- Swift package ecosystem questions
+- Requests mentioning specific packages (Alamofire, Combine, ComposableArchitecture, etc.)
+- Search recommendations ("use scully for search if needed")
 
 ## Capabilities
 
