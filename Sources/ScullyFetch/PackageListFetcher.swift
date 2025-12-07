@@ -9,14 +9,46 @@ public actor PackageListFetcher {
     private let logger = Logger(label: "scully.packagelist")
     private let session: URLSession
     private let packageListURL = URL(string: "https://raw.githubusercontent.com/SwiftPackageIndex/PackageList/main/packages.json")!
+    private let fileManager = FileManager.default
+    private let cacheExpiry: TimeInterval = 86400 // 24 hours
+    
+    // In-memory cache
+    private var cachedPackages: [String]?
+    private var cacheTimestamp: Date?
+    
+    // Disk cache location
+    private var cacheFileURL: URL {
+        let libraryPath = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first!
+        let cacheDir = libraryPath.appendingPathComponent("Scully/Cache")
+        try? fileManager.createDirectory(at: cacheDir, withIntermediateDirectories: true)
+        return cacheDir.appendingPathComponent("package_list.json")
+    }
 
     public init() {
         self.session = URLSession.shared
     }
 
-    /// Fetches the complete package list from SPI
+    /// Fetches the complete package list from SPI (with caching)
     public func fetchPackageList() async throws -> [String] {
-        logger.info("Fetching package list from Swift Package Index")
+        // Check memory cache first
+        if let cached = cachedPackages,
+           let timestamp = cacheTimestamp,
+           !isExpired(timestamp) {
+            logger.debug("Package list memory cache hit (\(cached.count) packages)")
+            return cached
+        }
+        
+        // Check disk cache
+        if let diskCached = try? loadPackageListFromDisk(),
+           !diskCached.isEmpty {
+            logger.debug("Package list disk cache hit (\(diskCached.count) packages)")
+            cachedPackages = diskCached
+            cacheTimestamp = Date()
+            return diskCached
+        }
+        
+        // Fetch from network
+        logger.info("Fetching package list from Swift Package Index (cache miss)")
 
         let (data, response) = try await session.data(from: packageListURL)
 
@@ -31,7 +63,42 @@ public actor PackageListFetcher {
         }
 
         logger.info("Fetched \(packageURLs.count) packages from Swift Package Index")
+        
+        // Cache the result
+        cachedPackages = packageURLs
+        cacheTimestamp = Date()
+        try? savePackageListToDisk(packageURLs)
+        
         return packageURLs
+    }
+    
+    // MARK: - Cache Helpers
+    
+    private func isExpired(_ timestamp: Date) -> Bool {
+        Date().timeIntervalSince(timestamp) > cacheExpiry
+    }
+    
+    private func loadPackageListFromDisk() throws -> [String]? {
+        guard fileManager.fileExists(atPath: cacheFileURL.path) else {
+            return nil
+        }
+        
+        // Check if file is expired
+        let attributes = try fileManager.attributesOfItem(atPath: cacheFileURL.path)
+        if let modificationDate = attributes[.modificationDate] as? Date,
+           isExpired(modificationDate) {
+            try? fileManager.removeItem(at: cacheFileURL)
+            return nil
+        }
+        
+        let data = try Data(contentsOf: cacheFileURL)
+        return try JSONDecoder().decode([String].self, from: data)
+    }
+    
+    private func savePackageListToDisk(_ packages: [String]) throws {
+        let data = try JSONEncoder().encode(packages)
+        try data.write(to: cacheFileURL)
+        logger.debug("Saved package list to disk cache")
     }
 
     /// Searches for packages by name

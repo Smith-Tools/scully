@@ -1,137 +1,164 @@
 ---
 name: scully
-description: Search third-party Swift package documentation and SPM dependencies from Tuist Registry and Swift Package Index. Use for Package.swift analysis, ComposableArchitecture (TCA), Alamofire, RxSwift, Kingfisher, Apollo-iOS, swift-nio, SwiftyBeaver, Nimble, Point-Free, Yams, async-http-client, and other non-Apple packages. Automatically triggers when working with Swift Package Manager, analyzing dependencies, asking about third-party library patterns, or requesting information about TCA, networking libraries, reactive programming, GraphQL, image handling, or other non-Apple frameworks. Does NOT cover Apple frameworks (use sosumi for Apple APIs).
+description: Search third-party Swift package documentation and analyze Swift Package Manager dependencies. Covers non-Apple packages from Tuist Registry and Swift Package Index including Alamofire, RxSwift, Kingfisher, Apollo-iOS, swift-nio, SwiftyBeaver, Nimble, Point-Free libraries, Yams, async-http-client, and ComposableArchitecture (TCA). Analyzes Package.swift manifests and dependency relationships. Use for package capabilities, integration patterns, code examples, and API documentation. TRIGGERS ON: third-party package questions, SPM dependencies, Package.swift analysis, library documentation, non-Apple framework questions, package integration patterns. Does NOT cover Apple frameworks—use sosumi for SwiftUI, Combine, UIKit, AppKit, Apple documentation, and WWDC sessions.
 allowed-tools: Bash, Read, Glob, Grep, WebFetch
 ---
 
+
 # Scully - Swift Package Documentation Tool
 
-Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It works both as a CLI tool and as a Claude Code skill for intelligent documentation discovery.
+Scully analyzes Swift packages and provides documentation from cached repositories. It works by finding dependencies, searching cache, detecting DocC documentation, and cloning repositories when needed.
 
-**Automatically triggered for:**
-- ✅ Third-party package questions ("What does Alamofire do?" "How do I use Yams?" "RxSwift tutorials?" "Apollo-iOS GraphQL?")
-- ✅ SPM dependency exploration ("Analyze Package.swift" "List dependencies" "Check Tuist Registry packages")
-- ✅ Non-Apple library research ("Find swift-nio examples" "ComposableArchitecture patterns" "Point-Free guides" "async-http-client setup")
-- ✅ Popular libraries ("Kingfisher caching" "SwiftyBeaver logging" "Nimble testing" "RxSwift reactive patterns")
-- ✅ Modern Swift packages ("async-http-client for networking" "apollo-ios for GraphQL" "kingdom patterns")
-- ✅ Dependency version management ("What versions does swift-argument-parser support?")
-- ✅ Package integration patterns ("How do X and Y third-party libs work together?")
-- ✅ Direct scully recommendations ("use scully for search if needed" "check scully for TCA docs")
+## How to Use This Skill
 
-**Does NOT trigger for:**
-- ❌ Apple frameworks (SwiftUI, Combine as Apple API) → use sosumi instead
-- ❌ WWDC sessions or Apple documentation → use sosumi instead
-- ❌ iOS SDK APIs → use sosumi instead
+**IMPORTANT**: When this skill triggers, you MUST run the `scully` CLI command. Do NOT do web searches instead.
 
-## Capabilities
+### Package Documentation Queries
 
-- **Dependency Analysis**: Parse Package.swift files and list project dependencies
-- **Documentation Access**: Fetch documentation from any Swift package
-- **Example Discovery**: Find code examples and playgrounds
-- **Smart Summaries**: Generate concise documentation overviews
-- **Pattern Extraction**: Identify common usage patterns
-- **Caching**: Local caching for faster repeat access
-
-## Usage Examples
-
-### As a Claude Code Skill (Recommended in Claude Code)
-
-Scully auto-triggers when you ask questions about packages:
-
-```
-"What does ComposableArchitecture provide?"
-  → scully auto-triggers with package capabilities
-
-"Show me examples for Combine error handling"
-  → scully auto-triggers with code examples
-
-"How do I use Alamofire for networking?"
-  → scully auto-triggers with usage patterns
-
-"Does [Package] have [feature]?"
-  → scully auto-triggers with capability check
-```
-
-### As a CLI Tool (Recommended in terminal)
-
-Use scully directly from the command line:
+When user asks about a package (e.g., "What does Alamofire do?", "How do I use RxSwift?"):
 
 ```bash
-# List all dependencies in current project
-scully list
-
-# Get detailed dependency listing with versions and URLs
-scully list --detailed
-
-# Access documentation for a specific package
-scully docs Alamofire
-
-# Find code examples for a package
-scully examples Combine
-
-# Find examples with a specific keyword
-scully examples Combine --filter "error handling"
-
-# Generate a summary of package documentation
-scully summary SwiftCharts
-
-# Extract common usage patterns
-scully patterns ComposableArchitecture
-
-# Filter patterns by frequency threshold
-scully patterns ComposableArchitecture --threshold 5
+scully docs [PackageName]
 ```
 
-### Integration with Smith Tools Workflow
+This will:
+1. Search for the package in the cache
+2. Check for DocC documentation
+3. Clone the repository if not cached
+4. Return README and documentation
 
-Use scully in combination with smith tools:
+### Code Examples
+
+When user asks for examples (e.g., "Show me Kingfisher examples", "Alamofire usage"):
+
+```bash
+scully examples [PackageName]
+```
+
+Optionally filter examples:
+```bash
+scully examples [PackageName] --filter "keyword"
+```
+
+### Package Summary
+
+When user asks "What does X provide?" or "X capabilities":
+
+```bash
+scully summary [PackageName]
+```
+
+### Usage Patterns
+
+When user asks about common patterns or best practices:
+
+```bash
+scully patterns [PackageName]
+```
+
+### List Project Dependencies
+
+When user asks about project dependencies or Package.swift:
+
+```bash
+scully list
+```
+
+Or for detailed output:
+```bash
+scully list --detailed
+```
+
+## Automatically Triggered For
+
+- ✅ Third-party package questions ("What does Alamofire do?")
+- ✅ Package capabilities ("Does RxSwift support X?")
+- ✅ Code examples ("Show me Kingfisher usage")
+- ✅ SPM dependencies ("Analyze Package.swift")
+- ✅ Non-Apple libraries (swift-nio, Apollo-iOS, etc.)
+- ✅ ComposableArchitecture (TCA) questions
+- ✅ Point-Free libraries
+- ✅ Package integration patterns
+
+## Does NOT Trigger For
+
+- ❌ Apple frameworks → use sosumi instead
+- ❌ SwiftUI/Combine (as Apple APIs) → use sosumi
+- ❌ WWDC sessions → use sosumi
+- ❌ iOS SDK questions → use sosumi
+
+## How Scully Works
+
+1. **Dependency Detection**: Parses Package.swift to find dependencies
+2. **Cache Search**: Checks local cache for package information
+3. **DocC Detection**: Looks for DocC documentation in the package
+4. **Repository Cloning**: Clones repo if not in cache
+5. **Documentation Extraction**: Extracts README, guides, and examples
+
+## Data Sources
+
+- **Local Cache**: `~/.scully/cache/` for previously fetched packages
+- **GitHub**: Primary source for package repositories
+- **Swift Package Index**: Package discovery via packages.json
+- **Tuist Registry**: Additional package sources
+
+## Example Workflows
+
+### Understand a Package
+
+User: "What does Alamofire do?"
+
+```bash
+scully docs Alamofire
+```
+
+Returns: README, key features, API overview
+
+### Find Integration Examples
+
+User: "How do I use Kingfisher for image caching?"
+
+```bash
+scully examples Kingfisher --filter "caching"
+```
+
+Returns: Code examples showing caching patterns
+
+### Analyze Project Dependencies
+
+User: "What packages does my project use?"
+
+```bash
+scully list --detailed
+```
+
+Returns: All dependencies with versions and URLs
+
+### Learn Package Patterns
+
+User: "What are common RxSwift patterns?"
+
+```bash
+scully patterns RxSwift
+```
+
+Returns: Frequently used patterns with examples
+
+## Integration with Smith Tools
+
+Use scully in combination with other Smith tools:
 
 ```bash
 # Step 1: See which packages your project uses
 smith dependencies /path/to/project
 
-# Step 2: Use scully CLI to explore packages
-scully list --detailed
-
-# Step 3: Get documentation for packages of interest
+# Step 2: Get documentation for packages of interest
 scully docs ComposableArchitecture
 scully examples ComposableArchitecture
 
-# Alternative in Claude Code: Ask about packages
-# "What does ComposableArchitecture provide?"
-# (scully skill auto-triggers automatically)
+# Step 3: Get Apple framework docs if needed
+sosumi docs NavigationStack
 ```
-
-## Data Sources
-
-- **GitHub Repositories**: Primary source for package information and documentation
-- **Swift Package Index**: Package discovery through packages.json
-- **Local Caching**: Faster repeat access with intelligent caching
-
-## Features
-
-### Smart Documentation Retrieval
-- Automatically finds README files
-- Locates DocC documentation when available
-- Follows common documentation patterns
-
-### Context-Aware Analysis
-- Analyzes current project dependencies
-- Provides relevant suggestions based on usage
-- Prioritizes frequently used packages
-
-### Efficient Caching
-- In-memory cache for immediate access
-- Persistent disk cache for between-sessions
-- Automatic cache expiration management
-
-## Integration
-
-Scully integrates seamlessly with:
-- **Smith Tools ecosystem**: As a standalone CLI tool
-- **Claude Code**: As an intelligent skill for documentation access
-- **Swift Package Manager**: For manifest analysis
-- **GitHub API**: For repository information fetching
 
 ## Configuration
 
@@ -139,3 +166,12 @@ Scully can be configured through:
 - Environment variables (e.g., `GITHUB_TOKEN` for API access)
 - Configuration files in `~/.config/scully/`
 - Command-line flags for one-time settings
+
+## Cache Management
+
+Scully maintains a local cache at `~/.scully/cache/`:
+- Cloned repositories
+- Extracted documentation
+- Package metadata
+
+Cache expires after 24 hours by default.

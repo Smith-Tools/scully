@@ -16,6 +16,7 @@ public actor ScullyEngine {
     private let gitHubFetcher: GitHubFetcher
     private let packageListFetcher: PackageListFetcher
     private let cacheManager: CacheManager
+    private let localFinder: LocalDocumentationFinder
 
     public init(configuration: ScullyConfiguration = ScullyConfiguration()) {
         self.configuration = configuration
@@ -23,6 +24,7 @@ public actor ScullyEngine {
         self.gitHubFetcher = GitHubFetcher()
         self.packageListFetcher = PackageListFetcher()
         self.cacheManager = CacheManager(configuration: configuration)
+        self.localFinder = LocalDocumentationFinder()
     }
 
     // MARK: - Package Operations
@@ -73,20 +75,26 @@ public actor ScullyEngine {
     ) async throws -> PackageDocumentation {
         logger.info("Fetching documentation for \(packageName)")
 
-        // First try to find the package
-        let packageInfo = try await searchPackage(byName: packageName)
-        guard let packageInfo = packageInfo else {
-            throw ScullyError.packageNotFound(packageName)
+        // 1. Check local sources FIRST (SPM checkouts, build artifacts, cached clones)
+        if let localDoc = try? await localFinder.findLocalDocumentation(for: packageName) {
+            logger.info("Using local documentation for \(packageName)")
+            return localDoc
         }
-
-        // Check cache first
+        
+        // 2. Check cache
         let cacheKey = "docs_\(packageName)_\(version ?? "latest")"
         if let cached = await cacheManager.getDocumentations(key: cacheKey) {
             logger.info("Returning cached documentation for \(packageName)")
             return cached
         }
 
-        // Fetch from GitHub
+        // 3. Search for package info (this now uses cached package list)
+        let packageInfo = try await searchPackage(byName: packageName)
+        guard let packageInfo = packageInfo else {
+            throw ScullyError.packageNotFound(packageName)
+        }
+
+        // 4. Fetch from GitHub (last resort)
         let doc = try await gitHubFetcher.fetchDocumentation(
             from: packageInfo.url,
             version: version

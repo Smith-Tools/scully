@@ -55,13 +55,39 @@ struct List: AsyncParsableCommand {
         logger.info("Analyzing project at \(path)")
 
         let scully = ScullyEngine()
-        let result = try await scully.listDependencies(at: path)
-
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .table:
-            printTable(result: result, detailed: detailed)
+        
+        do {
+            let result = try await scully.listDependencies(at: path)
+            
+            switch format {
+            case .json:
+                try printJSON(result)
+            case .table:
+                printTable(result: result, detailed: detailed)
+            }
+        } catch {
+            logger.info("Native analysis failed (\(error.localizedDescription)). Falling back to smith...")
+            try runSmith(path: path)
+        }
+    }
+    
+    private func runSmith(path: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        
+        var args = ["smith", "dependencies", path]
+        if format == .json {
+            args.append("--format=json")
+        }
+        // Pass verbose if desired, or other flags
+        
+        process.arguments = args
+        
+        try process.run()
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            throw ExitCode(process.terminationStatus)
         }
     }
 
@@ -117,20 +143,215 @@ struct List: AsyncParsableCommand {
 
 struct Docs: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Access documentation for a package"
+        abstract: "Access documentation for a package",
+        discussion: """
+        Get documentation for Swift packages.
+        
+        Single package:
+          scully docs Alamofire
+        
+        Batch mode (pipe from smith):
+          smith dependencies --format=json | scully docs
+        
+        Project dependencies:
+          scully docs --project-deps
+        """
     )
 
-    @Argument(help: "Package name")
-    var packageName: String
+    @Argument(help: "Package name (not needed if piping from stdin or using --project-deps)")
+    var packageName: String?
 
     @Option(help: "Specific version")
     var version: String?
 
     @Flag(help: "Include code examples")
     var examples = false
+    
+    @Flag(help: "Fetch docs for all dependencies in current project (calls smith)")
+    var projectDeps = false
 
     mutating func run() async throws {
         let logger = Logger(label: "scully.docs")
+        
+        // Priority 1: --project-deps flag
+        if projectDeps {
+            try await runProjectDepsMode(logger: logger)
+            return
+        }
+        
+        // Priority 2: Auto-detect stdin (piped data)
+        let stdinIsInteractive = isatty(FileHandle.standardInput.fileDescriptor) != 0
+        
+        if !stdinIsInteractive {
+            // stdin has piped data - read JSON automatically
+            try await runBatchMode(logger: logger)
+        } else if let packageName = packageName {
+            // Interactive mode with package name
+            try await runSingleMode(packageName: packageName, logger: logger)
+        } else {
+            // Interactive mode without package name - show help
+            print("Error: Package name required")
+            print("")
+            print("Usage:")
+            print("  scully docs <package-name>              # Get docs for one package")
+            print("  scully docs --project-deps              # Get docs for all project dependencies")
+            print("")
+            print("Or pipe from smith:")
+            print("  smith dependencies --format=json | scully docs")
+            throw ExitCode.validationFailure
+        }
+    }
+    
+    private func runProjectDepsMode(logger: Logger) async throws {
+        logger.info("Fetching project dependencies from Package.resolved...")
+        
+        print("🔍 Reading project dependencies...\n")
+        
+        // Look for Package.resolved in current directory
+        let packageResolvedPath = "./Package.resolved"
+        
+        guard FileManager.default.fileExists(atPath: packageResolvedPath) else {
+            print("Error: Package.resolved not found in current directory")
+            print("Run 'swift package resolve' first to generate Package.resolved")
+            throw ExitCode.failure
+        }
+        
+        // Read and parse Package.resolved
+        guard let data = FileManager.default.contents(atPath: packageResolvedPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("Error: Failed to parse Package.resolved")
+            throw ExitCode.failure
+        }
+        
+        // Extract package names from Package.resolved
+        var packages: [String] = []
+        
+        // Handle Package.resolved v2 format (pins at root) or v1 format (object.pins)
+        if let pins = json["pins"] as? [[String: Any]] {
+            // v2 format
+            packages = pins.compactMap { $0["identity"] as? String }
+        } else if let object = json["object"] as? [String: Any],
+                  let pins = object["pins"] as? [[String: Any]] {
+            // v1 format
+            packages = pins.compactMap { $0["identity"] as? String }
+        }
+        
+        if packages.isEmpty {
+            print("ℹ️  No dependencies found in Package.resolved")
+            return
+        }
+        
+        print("📦 Found \(packages.count) dependencies. Fetching documentation...\n")
+        
+        // Fetch docs for each package
+        let scully = ScullyEngine()
+        
+        for packageName in packages {
+            do {
+                let docs = try await scully.fetchDocumentation(for: packageName)
+                
+                print("─────────────────────────────────────────────────")
+                print("📚 \(packageName)")
+                print("─────────────────────────────────────────────────")
+                
+                // Show first 500 chars of documentation
+                let preview = String(docs.content.prefix(500))
+                print(preview)
+                if docs.content.count > 500 {
+                    print("\n... (truncated, \(docs.content.count) total chars)")
+                }
+                
+                if let url = docs.url {
+                    print("\n🔗 Source: \(url)")
+                }
+                print("")
+                
+            } catch {
+                print("⚠️  \(packageName): \(error.localizedDescription)\n")
+            }
+        }
+        
+        print("✅ Project documentation fetch complete")
+    }
+    
+    private func runBatchMode(logger: Logger) async throws {
+        logger.info("Reading package list from stdin...")
+        
+        // Read all stdin
+        var input = ""
+        while let line = readLine() {
+            input += line + "\n"
+        }
+        
+        guard !input.isEmpty else {
+            print("Error: No input received from stdin")
+            print("Expected JSON from: smith dependencies --format=json")
+            throw ExitCode.validationFailure
+        }
+        
+        // Parse JSON (expecting smith's dependency format)
+        guard let data = input.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("Error: Invalid JSON input")
+            throw ExitCode.validationFailure
+        }
+        
+        // Extract package names from smith's JSON format
+        var packages: [String] = []
+        
+        // Try to extract from various possible formats
+        // Try to extract from various possible formats
+        if let dependencies = json["dependencies"] as? [String: Any],
+           let external = dependencies["external"] as? [[String: Any]] {
+            // Smith format: {"dependencies": {"external": [{"name": "Alamofire", ...}], ...}}
+            packages = external.compactMap { $0["name"] as? String }
+        } else if let dependencies = json["dependencies"] as? [[String: Any]] {
+            // Simple array format
+            packages = dependencies.compactMap { $0["name"] as? String }
+        } else if let pins = json["pins"] as? [[String: Any]] {
+            // Package.resolved format
+            packages = pins.compactMap { $0["identity"] as? String }
+        }
+        
+        if packages.isEmpty {
+            print("Error: No packages found in JSON input")
+            print("Expected format from: smith dependencies --format=json")
+            throw ExitCode.validationFailure
+        }
+        
+        print("\n📦 Fetching documentation for \(packages.count) packages...\n")
+        
+        let scully = ScullyEngine()
+        
+        for packageName in packages {
+            do {
+                let docs = try await scully.fetchDocumentation(for: packageName)
+                
+                print("─────────────────────────────────────────────────")
+                print("📚 \(packageName)")
+                print("─────────────────────────────────────────────────")
+                
+                // Show first 500 chars of documentation
+                let preview = String(docs.content.prefix(500))
+                print(preview)
+                if docs.content.count > 500 {
+                    print("\n... (truncated, \(docs.content.count) total chars)")
+                }
+                
+                if let url = docs.url {
+                    print("\n🔗 Source: \(url)")
+                }
+                print("")
+                
+            } catch {
+                print("⚠️  \(packageName): \(error.localizedDescription)\n")
+            }
+        }
+        
+        print("✅ Batch documentation fetch complete")
+    }
+    
+    private func runSingleMode(packageName: String, logger: Logger) async throws {
         logger.info("Fetching documentation for \(packageName)")
 
         let scully = ScullyEngine()
