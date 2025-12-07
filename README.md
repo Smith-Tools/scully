@@ -8,7 +8,7 @@ Scully is a comprehensive tool for analyzing Swift packages and accessing their 
 
 ## Features
 
-- **Dependency Analysis**: Parse Package.swift files and list project dependencies
+- **Dependency Analysis**: Parse Package.swift files and list project dependencies (automatic fallback to `smith` for Xcode/Unknown projects)
 - **Documentation Access**: Fetch documentation from any Swift package
 - **Example Discovery**: Find code examples and playgrounds
 - **Smart Summaries**: Generate concise documentation overviews
@@ -59,6 +59,9 @@ scully patterns SwiftCharts
 
 # JSON output
 scully list --format json
+
+# Pipe from smith (Unified Analysis)
+smith dependencies --format=json | scully docs
 ```
 
 ### Claude Code Skill
