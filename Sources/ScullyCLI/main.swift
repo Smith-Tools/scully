@@ -19,19 +19,19 @@ struct ScullyCLI: AsyncParsableCommand {
           scully summary SwiftCharts           # Generate documentation summary
         """,
         subcommands: [
-            ListCommand.self,
-            DocsCommand.self,
-            ExamplesCommand.self,
-            SummaryCommand.self,
-            PatternsCommand.self
+            List.self,
+            Docs.self,
+            Examples.self,
+            Summary.self,
+            Patterns.self
         ],
-        defaultSubcommand: ListCommand.self
+        defaultSubcommand: List.self
     )
 }
 
 // MARK: - List Command
 
-struct ListCommand: AsyncParsableCommand {
+struct List: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "List dependencies in the current project"
     )
@@ -115,7 +115,7 @@ struct ListCommand: AsyncParsableCommand {
 
 // MARK: - Docs Command
 
-struct DocsCommand: AsyncParsableCommand {
+struct Docs: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Access documentation for a package"
     )
@@ -152,7 +152,7 @@ struct DocsCommand: AsyncParsableCommand {
 
 // MARK: - Examples Command
 
-struct ExamplesCommand: AsyncParsableCommand {
+struct Examples: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Find code examples for a package"
     )
@@ -200,7 +200,7 @@ struct ExamplesCommand: AsyncParsableCommand {
 
 // MARK: - Summary Command
 
-struct SummaryCommand: AsyncParsableCommand {
+struct Summary: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Generate a summary of package documentation"
     )
@@ -241,7 +241,7 @@ struct SummaryCommand: AsyncParsableCommand {
 
 // MARK: - Patterns Command
 
-struct PatternsCommand: AsyncParsableCommand {
+struct Patterns: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Extract common usage patterns for a package"
     )
