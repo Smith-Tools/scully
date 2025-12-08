@@ -56,12 +56,13 @@ scully summary Alamofire
 
 # Extract usage patterns
 scully patterns SwiftCharts
+scully patterns ComposableArchitecture --filter "navigation" --limit 10
 
 # JSON output
 scully list --format json
 
 # Pipe from smith (Unified Analysis)
-smith dependencies --format=json | scully docs
+smith dependencies --format=json | scully docs --limit 5000
 ```
 
 ### Claude Code Skill

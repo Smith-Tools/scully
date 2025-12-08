@@ -169,6 +169,9 @@ struct Docs: AsyncParsableCommand {
     
     @Flag(help: "Fetch docs for all dependencies in current project (calls smith)")
     var projectDeps = false
+    
+    @Option(help: "Truncate output to N characters (0 for unlimited)")
+    var limit: Int = 2000
 
     mutating func run() async throws {
         let logger = Logger(label: "scully.docs")
@@ -254,7 +257,7 @@ struct Docs: AsyncParsableCommand {
                 print("📚 \(packageName)")
                 print("─────────────────────────────────────────────────")
                 
-                // Show first 500 chars of documentation
+                // Show first 500 chars of documentation (limit hardcoded for batch)
                 let preview = String(docs.content.prefix(500))
                 print(preview)
                 if docs.content.count > 500 {
@@ -300,7 +303,6 @@ struct Docs: AsyncParsableCommand {
         var packages: [String] = []
         
         // Try to extract from various possible formats
-        // Try to extract from various possible formats
         if let dependencies = json["dependencies"] as? [String: Any],
            let external = dependencies["external"] as? [[String: Any]] {
             // Smith format: {"dependencies": {"external": [{"name": "Alamofire", ...}], ...}}
@@ -331,7 +333,7 @@ struct Docs: AsyncParsableCommand {
                 print("📚 \(packageName)")
                 print("─────────────────────────────────────────────────")
                 
-                // Show first 500 chars of documentation
+                // Show first 500 chars of documentation (limit hardcoded for batch)
                 let preview = String(docs.content.prefix(500))
                 print(preview)
                 if docs.content.count > 500 {
@@ -363,7 +365,14 @@ struct Docs: AsyncParsableCommand {
 
         print("\n📚 Documentation for \(packageName)")
         print(String(repeating: "─", count: 50))
-        print(docs.content)
+        
+        // Use the configurable limit for single mode
+        if limit > 0 && docs.content.count > limit {
+            print(String(docs.content.prefix(limit)))
+            print("\n... (truncated, \(docs.content.count) total chars). Use --limit 0 for full.")
+        } else {
+            print(docs.content)
+        }
 
         if let url = docs.url {
             print("\n🔗 Source: \(url)")
@@ -473,25 +482,48 @@ struct Patterns: AsyncParsableCommand {
     @Option(help: "Minimum frequency threshold")
     var threshold: Int = 2
 
+    @Option(help: "Filter by keyword")
+    var filter: String?
+
+    @Option(help: "Maximum number of patterns")
+    var limit: Int = 20
+
     mutating func run() async throws {
         let logger = Logger(label: "scully.patterns")
         logger.info("Extracting patterns for \(packageName)")
 
         let scully = ScullyEngine()
-        let patterns = try await scully.extractPatterns(
+        var patterns = try await scully.extractPatterns(
             for: packageName,
             threshold: threshold
         )
 
+        // 1. Filter
+        if let filter = filter {
+            patterns = patterns.filter { pattern in
+                pattern.pattern.localizedCaseInsensitiveContains(filter) ||
+                (pattern.description?.localizedCaseInsensitiveContains(filter) ?? false)
+            }
+        }
+
         if patterns.isEmpty {
-            print("No common patterns found for \(packageName)")
+            if filter != nil {
+                print("No patterns found for \(packageName) matching filter '\(filter!)'")
+            } else {
+                print("No common patterns found for \(packageName)")
+            }
             return
         }
 
         print("\n🔍 Usage Patterns for \(packageName)")
         print(String(repeating: "─", count: 50))
 
-        for pattern in patterns.sorted(by: { $0.frequency > $1.frequency }) {
+        // 2. Sort & Limit
+        let sortedPatterns = patterns.sorted(by: { $0.frequency > $1.frequency })
+        let unlimitedCount = sortedPatterns.count
+        let displayedPatterns = sortedPatterns.prefix(limit)
+
+        for pattern in displayedPatterns {
             print("\n\(pattern.pattern) (used \(pattern.frequency) times)")
             if let description = pattern.description {
                 print("  \(description)")
@@ -503,6 +535,10 @@ struct Patterns: AsyncParsableCommand {
                     print("    • \(example)")
                 }
             }
+        }
+
+        if unlimitedCount > limit {
+            print("\n... and \(unlimitedCount - limit) more patterns. Use --limit to see more.")
         }
     }
 }

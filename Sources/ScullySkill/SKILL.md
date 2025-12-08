@@ -21,6 +21,12 @@ When user asks about a package (e.g., "What does Alamofire do?", "How do I use R
 scully docs [PackageName]
 ```
 
+Limit output size (default: 2000 chars):
+```bash
+scully docs [PackageName] --limit 5000
+```
+*Note: Like `sosumi`'s verbosity levels, Scully truncates by default to fit agent context. Use larger limits or `--limit 0` (unlimited) for "full" verbosity.*
+
 This will:
 1. Search for the package in the cache
 2. Check for DocC documentation
@@ -54,6 +60,16 @@ When user asks about common patterns or best practices:
 
 ```bash
 scully patterns [PackageName]
+```
+
+Optionally filter patterns:
+```bash
+scully patterns [PackageName] --filter "keyword"
+```
+
+Limit the number of patterns (default: 20):
+```bash
+scully patterns [PackageName] --limit 50
 ```
 
 ### List Project Dependencies
