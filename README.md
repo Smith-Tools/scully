@@ -2,6 +2,13 @@
 
 Swift ecosystem analysis and documentation tool
 
+## Stability Status
+✅ **Production Ready** - Recent critical fixes ensure reliable operation
+- Fixed hanging issues during documentation fetching
+- Added proper timeout handling (30s/60s)
+- Implemented fallback to GitHub HTTP API
+- All pipeline modes working correctly
+
 ## Overview
 
 Scully is a comprehensive tool for analyzing Swift packages and accessing their documentation. It operates both as a standalone Smith Tool and as a Claude Code skill, making it easy to explore the Swift ecosystem and understand package dependencies.

@@ -2,77 +2,37 @@ import Foundation
 import Logging
 import ScullyTypes
 
-/// Fetches package information using GitHub CLI (gh)
+/// Fetches package information from GitHub using direct HTTP API calls
 public actor GitHubFetcher {
     private let logger = Logger(label: "scully.github")
     private let session: URLSession
 
     public init() {
-        self.session = URLSession.shared
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30  // 30 second timeout
+        config.timeoutIntervalForResource = 60  // 60 second timeout
+        self.session = URLSession(configuration: config)
     }
 
-    /// Fetches repository information using gh CLI
+    /// Fetches repository information using GitHub API
     public func fetchRepositoryInfo(from url: String) async throws -> PackageInfo {
-        logger.info("Fetching repository info using gh CLI for \(url)")
+        logger.info("Fetching repository info for \(url)")
 
         // Extract owner and repo from URL
         let components = extractRepoComponents(from: url)
         let owner = components.owner
         let repoName = components.repo
 
-        // Use gh CLI to get repository info
-        let repoInfo = try await runGHCommand(
-            "repo view \(owner)/\(repoName) --json name,description,defaultBranchRef,licenseInfo,owner,stargazerCount,forkCount,updatedAt"
-        )
-
-        guard let data = repoInfo.data(using: .utf8),
-              let repoDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let name = repoDict["name"] as? String,
-              let ownerDict = repoDict["owner"] as? [String: Any],
-              let author = ownerDict["login"] as? String else {
-            throw ScullyError.parseError("Failed to parse gh repo output")
+        guard owner != "unknown", repoName != "unknown" else {
+            throw ScullyError.parseError("Invalid GitHub URL: \(url)")
         }
 
-        let description = repoDict["description"] as? String
-        let defaultBranch = (repoDict["defaultBranchRef"] as? [String: Any])?["name"] as? String
-        let license = (repoDict["licenseInfo"] as? [String: Any])?["name"] as? String
-        let stars = repoDict["stargazerCount"] as? Int
-        let forks = repoDict["forkCount"] as? Int
-        let updatedAtString = repoDict["updatedAt"] as? String
-        let lastUpdated = updatedAtString.flatMap { ISO8601DateFormatter().date(from: $0) }
-
-        // Get latest release for version info
-        var version: String? = nil
-        do {
-            let releaseOutput = try await runGHCommand("release view --repo \(owner)/\(repoName) --json tagName")
-            if let releaseData = releaseOutput.data(using: .utf8),
-               let releaseDict = try JSONSerialization.jsonObject(with: releaseData) as? [String: Any],
-               let tagName = releaseDict["tagName"] as? String {
-                version = tagName
-            }
-        } catch {
-            logger.debug("No releases found for \(owner)/\(repoName)")
+        // Check if gh CLI is available and use it for better rate limit handling
+        if await isGHAvailable() {
+            return try await fetchWithGHCLI(owner: owner, repo: repoName)
+        } else {
+            return try await fetchWithHTTPAPI(owner: owner, repo: repoName)
         }
-
-        // Find documentation files
-        let readmeURL = "https://raw.githubusercontent.com/\(owner)/\(repoName)/\(defaultBranch ?? "main")/README.md"
-        let doccURL = "https://github.com/\(owner)/\(repoName)/tree/\(defaultBranch ?? "main")/Documentation.docc"
-
-        return PackageInfo(
-            name: name,
-            url: url,
-            description: description,
-            version: version,
-            license: license,
-            author: author,
-            tags: nil,
-            stars: stars,
-            forks: forks,
-            lastUpdated: lastUpdated,
-            readmeURL: readmeURL,
-            documentationURL: doccURL,
-            repositoryType: .github
-        )
     }
 
     /// Fetches documentation from a repository
@@ -80,13 +40,17 @@ public actor GitHubFetcher {
         from url: String,
         version: String? = nil
     ) async throws -> PackageDocumentation {
-        logger.info("Fetching documentation using gh CLI for \(url)")
+        logger.info("Fetching documentation for \(url)")
 
         let components = extractRepoComponents(from: url)
         let owner = components.owner
         let repoName = components.repo
 
-        // First try to find documentation files
+        guard owner != "unknown", repoName != "unknown" else {
+            throw ScullyError.parseError("Invalid GitHub URL: \(url)")
+        }
+
+        // First try to find documentation files using GitHub API
         let docFiles = try await findDocumentationFiles(owner: owner, repo: repoName)
 
         var content = ""
@@ -111,7 +75,7 @@ public actor GitHubFetcher {
         }
 
         if content.isEmpty {
-            throw ScullyError.networkError("No documentation found")
+            throw ScullyError.networkError("No documentation found for \(repoName)")
         }
 
         return PackageDocumentation(
@@ -129,11 +93,15 @@ public actor GitHubFetcher {
         filter: String? = nil,
         limit: Int = 20
     ) async throws -> [CodeExample] {
-        logger.info("Finding code examples using gh CLI for \(url)")
+        logger.info("Finding examples for \(url)")
 
         let components = extractRepoComponents(from: url)
         let owner = components.owner
         let repoName = components.repo
+
+        guard owner != "unknown", repoName != "unknown" else {
+            return []
+        }
 
         // Search for common example file patterns
         let patterns = [
@@ -141,8 +109,6 @@ public actor GitHubFetcher {
             "Examples/**/*.swift",
             "Examples/*.md",
             "Examples/**/*.md",
-            "Examples/*.playground",
-            "Examples/**/*.playground",
             "Sample/*.swift",
             "Sample/**/*.swift",
             "Demo/*.swift",
@@ -152,44 +118,36 @@ public actor GitHubFetcher {
 
         var examples: [CodeExample] = []
 
-        for pattern in patterns {
-            let fileList = try await runGHCommand(
-                "api repos/\(owner)/\(repoName)/git/trees/main?recursive=true"
-            )
+        // Use GitHub API to get file tree
+        let treeData = try await fetchGitHubAPI(
+            endpoint: "repos/\(owner)/\(repoName)/git/trees/main?recursive=true"
+        )
 
-            guard let data = fileList.data(using: .utf8),
-                  let treeDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let tree = treeDict["tree"] as? [[String: Any]] else {
-                continue
-            }
+        guard let treeDict = try JSONSerialization.jsonObject(with: treeData) as? [String: Any],
+              let tree = treeDict["tree"] as? [[String: Any]] else {
+            return []
+        }
 
-            let matchingFiles = tree.filter { item in
-                guard let path = item["path"] as? String,
-                      let type = item["type"] as? String else { return false }
-                return type == "blob" && path.matches(pattern: pattern)
-            }
+        // Find matching files
+        let matchingFiles = tree.filter { item in
+            guard let path = item["path"] as? String,
+                  let type = item["type"] as? String else { return false }
+            return type == "blob" && patterns.contains { path.matches(pattern: $0) }
+        }
 
-            for item in matchingFiles.prefix(limit) {
-                guard let path = item["path"] as? String,
-                      let sha = item["sha"] as? String else { continue }
+        // Fetch content for matching files
+        for item in matchingFiles.prefix(limit) {
+            guard let path = item["path"] as? String,
+                  let sha = item["sha"] as? String else { continue }
 
-                // Get file content
-                let contentURL = "https://api.github.com/repos/\(owner)/\(repoName)/git/blobs/\(sha)"
-                let contentOutput = try await runGHCommand("api \(contentURL)")
-
-                guard let contentData = contentOutput.data(using: .utf8),
-                      let contentDict = try JSONSerialization.jsonObject(with: contentData) as? [String: Any],
-                      let base64Content = contentDict["content"] as? String,
-                      let content = Data(base64Encoded: base64Content),
-                      let contentString = String(data: content, encoding: .utf8) else { continue }
-
+            if let content = try await fetchFileContent(owner: owner, repo: repoName, sha: sha) {
                 let language = path.hasSuffix(".swift") ? "swift" :
                               path.hasSuffix(".md") ? "markdown" : "text"
 
                 examples.append(CodeExample(
                     packageName: repoName,
                     title: path.components(separatedBy: "/").last ?? path,
-                    code: contentString,
+                    code: content,
                     language: language,
                     source: path
                 ))
@@ -199,9 +157,122 @@ public actor GitHubFetcher {
         return examples
     }
 
-    // MARK: - Private Helpers
+    // MARK: - Private Methods
 
-    private func findDocumentationFiles(owner: String, repo: String) async throws -> (readme: String?, docc: String?, doccURL: String?, otherMarkdown: String?, otherMarkdownURL: String?) {
+    private func fetchWithGHCLI(owner: String, repo: String) async throws -> PackageInfo {
+        logger.debug("Using gh CLI for \(owner)/\(repo)")
+
+        // Try to get basic repo info
+        let repoOutput = try await runGHCommand([
+            "repo", "view", "\(owner)/\(repo)",
+            "--json", "name,description,defaultBranchRef,licenseInfo,owner,stargazerCount,forkCount,updatedAt"
+        ])
+
+        guard let data = repoOutput.data(using: .utf8),
+              let repoDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = repoDict["name"] as? String,
+              let ownerDict = repoDict["owner"] as? [String: Any],
+              let author = ownerDict["login"] as? String else {
+            throw ScullyError.parseError("Failed to parse gh repo output")
+        }
+
+        let description = repoDict["description"] as? String
+        let defaultBranch = (repoDict["defaultBranchRef"] as? [String: Any])?["name"] as? String
+        let license = (repoDict["licenseInfo"] as? [String: Any])?["name"] as? String
+        let stars = repoDict["stargazerCount"] as? Int
+        let forks = repoDict["forkCount"] as? Int
+        let updatedAtString = repoDict["updatedAt"] as? String
+        let lastUpdated = updatedAtString.flatMap { ISO8601DateFormatter().date(from: $0) }
+
+        // Get latest release
+        var version: String? = nil
+        do {
+            let releaseOutput = try await runGHCommand([
+                "release", "view", "--repo", "\(owner)/\(repo)", "--json", "tagName"
+            ])
+            if let releaseData = releaseOutput.data(using: .utf8),
+               let releaseDict = try JSONSerialization.jsonObject(with: releaseData) as? [String: Any],
+               let tagName = releaseDict["tagName"] as? String {
+                version = tagName
+            }
+        } catch {
+            logger.debug("No releases found for \(owner)/\(repo)")
+        }
+
+        let readmeURL = "https://raw.githubusercontent.com/\(owner)/\(repo)/\(defaultBranch ?? "main")/README.md"
+        let doccURL = "https://github.com/\(owner)/\(repo)/tree/\(defaultBranch ?? "main")/Documentation.docc"
+
+        return PackageInfo(
+            name: name,
+            url: "https://github.com/\(owner)/\(repo)",
+            description: description,
+            version: version,
+            license: license,
+            author: author,
+            tags: nil,
+            stars: stars,
+            forks: forks,
+            lastUpdated: lastUpdated,
+            readmeURL: readmeURL,
+            documentationURL: doccURL,
+            repositoryType: .github
+        )
+    }
+
+    private func fetchWithHTTPAPI(owner: String, repo: String) async throws -> PackageInfo {
+        logger.debug("Using HTTP API for \(owner)/\(repo)")
+
+        let data = try await fetchGitHubAPI(endpoint: "repos/\(owner)/\(repo)")
+
+        guard let repoDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = repoDict["name"] as? String,
+              let author = repoDict["owner"] as? [String: Any],
+              let authorLogin = author["login"] as? String else {
+            throw ScullyError.parseError("Failed to parse repository info")
+        }
+
+        let description = repoDict["description"] as? String
+        let defaultBranch = repoDict["default_branch"] as? String
+        let license = (repoDict["license"] as? [String: Any])?["name"] as? String
+        let stars = repoDict["stargazers_count"] as? Int
+        let forks = repoDict["forks_count"] as? Int
+        let updatedAtString = repoDict["updated_at"] as? String
+        let lastUpdated = updatedAtString.flatMap { ISO8601DateFormatter().date(from: $0) }
+
+        // Try to get latest release
+        var version: String? = nil
+        do {
+            let releaseData = try await fetchGitHubAPI(endpoint: "repos/\(owner)/\(repo)/releases/latest")
+            if let releaseDict = try JSONSerialization.jsonObject(with: releaseData) as? [String: Any] {
+                version = releaseDict["tag_name"] as? String
+            }
+        } catch {
+            logger.debug("No releases found for \(owner)/\(repo)")
+        }
+
+        let readmeURL = "https://raw.githubusercontent.com/\(owner)/\(repo)/\(defaultBranch ?? "main")/README.md"
+        let doccURL = "https://github.com/\(owner)/\(repo)/tree/\(defaultBranch ?? "main")/Documentation.docc"
+
+        return PackageInfo(
+            name: name,
+            url: "https://github.com/\(owner)/\(repo)",
+            description: description,
+            version: version,
+            license: license,
+            author: authorLogin,
+            tags: nil,
+            stars: stars,
+            forks: forks,
+            lastUpdated: lastUpdated,
+            readmeURL: readmeURL,
+            documentationURL: doccURL,
+            repositoryType: .github
+        )
+    }
+
+    private func findDocumentationFiles(owner: String, repo: String) async throws -> (
+        readme: String?, docc: String?, doccURL: String?, otherMarkdown: String?, otherMarkdownURL: String?
+    ) {
         var readme: String?
         var docc: String?
         var doccURL: String?
@@ -222,89 +293,74 @@ public actor GitHubFetcher {
             }
         }
 
-        // Look for DocC documentation
+        // Look for DocC documentation using GitHub API
         do {
-            let doccPath = try await findDocCPath(owner: owner, repo: repo)
-            if let path = doccPath {
-                doccURL = "https://github.com/\(owner)/\(repo)/tree/main/\(path)"
-                // Try to get some documentation content from DocC
-                docc = try await fetchDocCContent(owner: owner, repo: repo, path: path)
+            let treeData = try await fetchGitHubAPI(endpoint: "repos/\(owner)/\(repo)/git/trees/main")
+            guard let treeDict = try JSONSerialization.jsonObject(with: treeData) as? [String: Any],
+                  let tree = treeDict["tree"] as? [[String: Any]] else {
+                return (readme, docc, doccURL, otherMarkdown, otherMarkdownURL)
             }
-        } catch {
-            logger.debug("Could not find DocC documentation")
-        }
 
-        // Look for other markdown files
-        do {
-            let markdownFiles = try await findMarkdownFiles(owner: owner, repo: repo)
+            // Look for .docc directories
+            for item in tree {
+                if let path = item["path"] as? String,
+                   path.hasSuffix(".docc"),
+                   let type = item["type"] as? String,
+                   type == "tree" {
+                    doccURL = "https://github.com/\(owner)/\(repo)/tree/main/\(path)"
+                    docc = "DocC documentation found at \(path)"
+                    break
+                }
+            }
+
+            // Look for other markdown files
+            var markdownFiles: [String] = []
+            for item in tree {
+                if let path = item["path"] as? String,
+                   path.hasSuffix(".md"),
+                   !path.contains("README"),
+                   let type = item["type"] as? String,
+                   type == "blob" {
+                    markdownFiles.append(path)
+                }
+            }
+
             if let firstFile = markdownFiles.first,
-               let content = try await fetchFileContent(owner: owner, repo: repo, path: firstFile) {
+               let content = try? await fetchFileContent(owner: owner, repo: repo, path: firstFile) {
                 otherMarkdown = content
                 otherMarkdownURL = "https://github.com/\(owner)/\(repo)/blob/main/\(firstFile)"
             }
         } catch {
-            logger.debug("Could not find markdown files")
+            logger.debug("Could not find documentation files: \(error)")
         }
 
         return (readme, docc, doccURL, otherMarkdown, otherMarkdownURL)
     }
 
-    private func findDocCPath(owner: String, repo: String) async throws -> String? {
-        let treeOutput = try await runGHCommand("api repos/\(owner)/\(repo)/git/trees/main")
+    private func fetchFileContent(owner: String, repo: String, sha: String) async throws -> String? {
+        let data = try await fetchGitHubAPI(endpoint: "repos/\(owner)/\(repo)/git/blobs/\(sha)")
 
-        guard let data = treeOutput.data(using: .utf8),
-              let treeDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tree = treeDict["tree"] as? [[String: Any]] else {
+        guard let blobDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let base64Content = blobDict["content"] as? String,
+              let content = Data(base64Encoded: base64Content),
+              let contentString = String(data: content, encoding: .utf8) else {
             return nil
         }
 
-        // Look for .docc directories
-        for item in tree {
-            if let path = item["path"] as? String,
-               path.hasSuffix(".docc"),
-               let type = item["type"] as? String,
-               type == "tree" {
-                return path
-            }
-        }
-
-        return nil
-    }
-
-    private func findMarkdownFiles(owner: String, repo: String) async throws -> [String] {
-        let treeOutput = try await runGHCommand("api repos/\(owner)/\(repo)/git/trees/main")
-
-        guard let data = treeOutput.data(using: .utf8),
-              let treeDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tree = treeDict["tree"] as? [[String: Any]] else {
-            return []
-        }
-
-        var markdownFiles: [String] = []
-
-        for item in tree {
-            if let path = item["path"] as? String,
-               path.hasSuffix(".md"),
-               !path.contains("README"), // Exclude README as we handle it separately
-               let type = item["type"] as? String,
-               type == "blob" {
-                markdownFiles.append(path)
-            }
-        }
-
-        return markdownFiles
+        return contentString
     }
 
     private func fetchFileContent(owner: String, repo: String, path: String) async throws -> String? {
-        return try await runGHCommand("api repos/\(owner)/\(repo)/contents/\(path)")
-    }
+        let data = try await fetchGitHubAPI(endpoint: "repos/\(owner)/\(repo)/contents/\(path)")
 
-    private func fetchDocCContent(owner: String, repo: String, path: String) async throws -> String? {
-        // Try to find and read the main documentation file in the .docc directory
-        _ = try await runGHCommand("api repos/\(owner)/\(repo)/git/trees/main:\(path)")
+        guard let fileDict = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let base64Content = fileDict["content"] as? String,
+              let content = Data(base64Encoded: base64Content),
+              let contentString = String(data: content, encoding: .utf8) else {
+            return nil
+        }
 
-        // For now, return a simple description
-        return "DocC documentation found at \(path)"
+        return contentString
     }
 
     private func extractRepoComponents(from url: String) -> (owner: String, repo: String) {
@@ -322,51 +378,85 @@ public actor GitHubFetcher {
         return (String(pathComponents[0]), String(pathComponents[1]).replacingOccurrences(of: ".git", with: ""))
     }
 
-    @discardableResult
-    private func runGHCommand(_ command: String) async throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        // Split command while preserving quoted strings
-        var components: [String] = ["gh"]
-        var current = ""
-        var inQuotes = false
+    private func isGHAvailable() async -> Bool {
+        return await withCheckedContinuation { continuation in
+            Task {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                process.arguments = ["gh", "--version"]
 
-        for char in command {
-            if char == "\"" {
-                inQuotes.toggle()
-            } else if char == " " && !inQuotes {
-                if !current.isEmpty {
-                    components.append(current)
-                    current = ""
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = pipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                    continuation.resume(returning: process.terminationStatus == 0)
+                } catch {
+                    continuation.resume(returning: false)
                 }
-            } else {
-                current.append(char)
             }
         }
-        if !current.isEmpty {
-            components.append(current)
+    }
+
+    private func runGHCommand(_ arguments: [String]) async throws -> String {
+        return try await withCheckedThrowingContinuation { continuation in
+            Task {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                process.arguments = ["gh"] + arguments
+
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    if process.terminationStatus == 0 {
+                        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        let output = String(data: data, encoding: .utf8) ?? ""
+                        continuation.resume(returning: output)
+                    } else {
+                        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                        continuation.resume(throwing: ScullyError.networkError("gh command failed: \(errorMessage)"))
+                    }
+                } catch {
+                    continuation.resume(throwing: ScullyError.networkError("Failed to run gh command: \(error)"))
+                }
+            }
+        }
+    }
+
+    private func fetchGitHubAPI(endpoint: String) async throws -> Data {
+        guard let url = URL(string: "https://api.github.com/\(endpoint)") else {
+            throw ScullyError.networkError("Invalid URL for endpoint: \(endpoint)")
         }
 
-        process.arguments = components
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.setValue("Smith-Tools/1.0", forHTTPHeaderField: "User-Agent")
 
         do {
-            try process.run()
-            process.waitUntilExit()
-
-            guard process.terminationStatus == 0 else {
-                let errorData = (process.standardError as! Pipe).fileHandleForReading.readDataToEndOfFile()
-                let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
-                throw ScullyError.networkError("gh command failed: \(errorMessage)")
+            let (data, response) = try await session.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ScullyError.networkError("Invalid response from GitHub API")
             }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            return String(data: data, encoding: .utf8) ?? ""
+            
+            guard httpResponse.statusCode == 200 else {
+                throw ScullyError.networkError("GitHub API returned status \(httpResponse.statusCode)")
+            }
+            
+            return data
+        } catch let error as ScullyError {
+            throw error
         } catch {
-            throw ScullyError.networkError("Failed to run gh command: \(error)")
+            throw ScullyError.networkError("Failed to fetch from GitHub API: \(error)")
         }
     }
 
