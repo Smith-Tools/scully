@@ -22,8 +22,9 @@ struct ScullyCLI: AsyncParsableCommand {
             List.self,
             Docs.self,
             Examples.self,
-            Summary.self,
-            Patterns.self
+            IngestRAG.self,
+            RAGSearch.self,
+            EmbedMissing.self,
         ],
         defaultSubcommand: List.self
     )
@@ -430,115 +431,68 @@ struct Examples: AsyncParsableCommand {
 
 // MARK: - Summary Command
 
-struct Summary: AsyncParsableCommand {
+// MARK: - RAG Commands
+
+struct IngestRAG: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Generate a summary of package documentation"
+        abstract: "Ingest package documentation into RAG database"
     )
 
     @Argument(help: "Package name")
     var packageName: String
 
-    @Option(help: "Specific version")
-    var version: String?
-
     mutating func run() async throws {
-        let logger = Logger(label: "scully.summary")
-        logger.info("Generating summary for \(packageName)")
-
-        let scully = ScullyEngine()
-        let summary = try await scully.generateSummary(
-            for: packageName,
-            version: version
-        )
-
-        print("\n📝 Summary for \(packageName)")
-        print(String(repeating: "─", count: 50))
-        print(summary.summary)
-
-        print("\n✨ Key Features:")
-        for feature in summary.keyFeatures {
-            print("  • \(feature)")
-        }
-
-        print("\n🎯 Common Use Cases:")
-        for useCase in summary.commonUseCases {
-            print("  • \(useCase)")
-        }
-
-        print("\n📈 Learning Curve: \(summary.learningCurve.rawValue)")
+        let engine = ScullyEngine()
+        let adapter = try await ScullyRAGAdapter(engine: engine)
+        
+        print("📥 Ingesting \(packageName)...")
+        try await adapter.ingest(packageName: packageName)
+        print("✅ Ingestion complete")
     }
 }
 
-// MARK: - Patterns Command
-
-struct Patterns: AsyncParsableCommand {
+struct RAGSearch: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Extract common usage patterns for a package"
+        abstract: "Search packages using RAG"
     )
 
-    @Argument(help: "Package name")
-    var packageName: String
-
-    @Option(help: "Minimum frequency threshold")
-    var threshold: Int = 2
-
-    @Option(help: "Filter by keyword")
-    var filter: String?
-
-    @Option(help: "Maximum number of patterns")
-    var limit: Int = 20
+    @Argument(help: "Search query")
+    var query: String
+    
+    @Option(help: "Max results")
+    var limit: Int = 5
 
     mutating func run() async throws {
-        let logger = Logger(label: "scully.patterns")
-        logger.info("Extracting patterns for \(packageName)")
-
-        let scully = ScullyEngine()
-        var patterns = try await scully.extractPatterns(
-            for: packageName,
-            threshold: threshold
-        )
-
-        // 1. Filter
-        if let filter = filter {
-            patterns = patterns.filter { pattern in
-                pattern.pattern.localizedCaseInsensitiveContains(filter) ||
-                (pattern.description?.localizedCaseInsensitiveContains(filter) ?? false)
-            }
-        }
-
-        if patterns.isEmpty {
-            if filter != nil {
-                print("No patterns found for \(packageName) matching filter '\(filter!)'")
-            } else {
-                print("No common patterns found for \(packageName)")
-            }
-            return
-        }
-
-        print("\n🔍 Usage Patterns for \(packageName)")
+        let engine = ScullyEngine()
+        let adapter = try await ScullyRAGAdapter(engine: engine)
+        
+        let results = try await adapter.search(query: query, limit: limit)
+        
+        print("\n🔍 Search Results for '\(query)'")
         print(String(repeating: "─", count: 50))
-
-        // 2. Sort & Limit
-        let sortedPatterns = patterns.sorted(by: { $0.frequency > $1.frequency })
-        let unlimitedCount = sortedPatterns.count
-        let displayedPatterns = sortedPatterns.prefix(limit)
-
-        for pattern in displayedPatterns {
-            print("\n\(pattern.pattern) (used \(pattern.frequency) times)")
-            if let description = pattern.description {
-                print("  \(description)")
-            }
-
-            if !pattern.examples.isEmpty {
-                print("  Examples:")
-                for example in pattern.examples.prefix(3) {
-                    print("    • \(example)")
-                }
-            }
+        
+        for result in results {
+            print("\n• \(result.id)")
+            print("  Score: \(String(format: "%.3f", result.score))")
+            print("  \(result.snippet.replacingOccurrences(of: "\n", with: " "))")
         }
+    }
+}
 
-        if unlimitedCount > limit {
-            print("\n... and \(unlimitedCount - limit) more patterns. Use --limit to see more.")
-        }
+struct EmbedMissing: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Generate missing embeddings for ingested chunks"
+    )
+    
+    @Option(help: "Number of chunks to process")
+    var limit: Int = 1000
+    
+    mutating func run() async throws {
+        let engine = ScullyEngine()
+        let adapter = try await ScullyRAGAdapter(engine: engine)
+        
+        print("embedding missing chunks (limit: \(limit))...")
+        try await adapter.embedMissing(limit: limit)
+        print("Done.")
     }
 }

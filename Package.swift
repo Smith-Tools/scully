@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "scully",
     platforms: [
-        .macOS(.v13)
+        .macOS(.v14)
     ],
     products: [
         .executable(
@@ -24,6 +24,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.40.0"),
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.6.0"),
+        .package(path: "../smith-rag"),
     ],
     targets: [
         .executableTarget(
@@ -51,6 +52,7 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "Yams", package: "Yams"),
                 .product(name: "SwiftSoup", package: "SwiftSoup"),
+                .product(name: "SmithRAG", package: "smith-rag"),
             ]
         ),
         .target(

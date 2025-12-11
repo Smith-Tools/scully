@@ -129,42 +129,7 @@ public actor ScullyEngine {
         return Array(examples.prefix(limit))
     }
 
-    /// Generates a summary of package documentation
-    public func generateSummary(
-        for packageName: String,
-        version: String? = nil
-    ) async throws -> DocumentationSummary {
-        logger.info("Generating summary for \(packageName)")
 
-        let docs = try await fetchDocumentation(for: packageName, version: version)
-        let examples = try await findExamples(for: packageName, limit: 20)
-
-        // Use the process module to generate summary
-        let summarizer = Summarizer()
-        return try await summarizer.generateSummary(
-            documentation: docs,
-            examples: examples
-        )
-    }
-
-    /// Extracts usage patterns from documentation and examples
-    public func extractPatterns(
-        for packageName: String,
-        threshold: Int = 2
-    ) async throws -> [UsagePattern] {
-        logger.info("Extracting patterns for \(packageName)")
-
-        let docs = try await fetchDocumentation(for: packageName)
-        let examples = try await findExamples(for: packageName, limit: 50)
-
-        let patternExtractor = PatternExtractor()
-        let patterns = try await patternExtractor.extractPatterns(
-            from: docs,
-            examples: examples
-        )
-
-        return patterns.filter { $0.frequency >= threshold }
-    }
 
     // MARK: - Private Helpers
 
