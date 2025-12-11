@@ -85,72 +85,8 @@ public struct Target: Codable, Sendable {
 
 // MARK: - Package Information Models
 
-/// Comprehensive package information from various sources
-public struct PackageInfo: Codable, Sendable {
-    public let name: String
-    public let url: String
-    public let description: String?
-    public let version: String?
-    public let license: String?
-    public let author: String?
-    public let tags: [String]?
-    public let stars: Int?
-    public let forks: Int?
-    public let lastUpdated: Date?
-    public let readmeURL: String?
-    public let documentationURL: String?
-    public let repositoryType: RepositoryType
+@_exported import SmithDocs
 
-    public enum RepositoryType: String, Codable, Sendable {
-        case github
-        case gitlab
-        case bitbucket
-        case other
-    }
-
-    public init(name: String, url: String, description: String? = nil, version: String? = nil, license: String? = nil, author: String? = nil, tags: [String]? = nil, stars: Int? = nil, forks: Int? = nil, lastUpdated: Date? = nil, readmeURL: String? = nil, documentationURL: String? = nil, repositoryType: RepositoryType = .github) {
-        self.name = name
-        self.url = url
-        self.description = description
-        self.version = version
-        self.license = license
-        self.author = author
-        self.tags = tags
-        self.stars = stars
-        self.forks = forks
-        self.lastUpdated = lastUpdated
-        self.readmeURL = readmeURL
-        self.documentationURL = documentationURL
-        self.repositoryType = repositoryType
-    }
-}
-
-/// Documentation content from a package
-public struct PackageDocumentation: Codable, Sendable {
-    public let packageName: String
-    public let version: String?
-    public let content: String
-    public let type: DocumentationType
-    public let url: String?
-    public let extractedAt: Date
-
-    public enum DocumentationType: String, Codable, Sendable {
-        case readme
-        case docc
-        case guide
-        case tutorial
-        case apiReference
-    }
-
-    public init(packageName: String, version: String? = nil, content: String, type: DocumentationType, url: String? = nil) {
-        self.packageName = packageName
-        self.version = version
-        self.content = content
-        self.type = type
-        self.url = url
-        self.extractedAt = Date()
-    }
-}
 
 /// Code example extracted from playgrounds or documentation
 public struct CodeExample: Codable, Sendable {
@@ -212,5 +148,44 @@ public struct DocumentationSummary: Codable, Sendable {
         self.commonUseCases = commonUseCases
         self.learningCurve = learningCurve
         self.generatedAt = Date()
+    }
+}
+
+public struct PackageInfo: Codable, Sendable {
+    public let name: String
+    public let url: String
+    public let description: String?
+    public let version: String?
+    public let license: String?
+    public let author: String?
+    public let tags: [String]?
+    public let stars: Int?
+    public let forks: Int?
+    public let lastUpdated: Date?
+    public let readmeURL: String?
+    public let documentationURL: String?
+    public let repositoryType: RepositoryType
+
+    public enum RepositoryType: String, Codable, Sendable {
+        case github
+        case gitlab
+        case bitbucket
+        case other
+    }
+
+    public init(name: String, url: String, description: String? = nil, version: String? = nil, license: String? = nil, author: String? = nil, tags: [String]? = nil, stars: Int? = nil, forks: Int? = nil, lastUpdated: Date? = nil, readmeURL: String? = nil, documentationURL: String? = nil, repositoryType: RepositoryType = .github) {
+        self.name = name
+        self.url = url
+        self.description = description
+        self.version = version
+        self.license = license
+        self.author = author
+        self.tags = tags
+        self.stars = stars
+        self.forks = forks
+        self.lastUpdated = lastUpdated
+        self.readmeURL = readmeURL
+        self.documentationURL = documentationURL
+        self.repositoryType = repositoryType
     }
 }

@@ -25,6 +25,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.6.0"),
         .package(path: "../smith-rag"),
+        .package(path: "../smith-docs"),
     ],
     targets: [
         .executableTarget(
@@ -37,7 +38,9 @@ let package = Package(
         ),
         .target(
             name: "ScullyTypes",
-            dependencies: []
+            dependencies: [
+                .product(name: "SmithDocs", package: "smith-docs")
+            ]
         ),
         .target(
             name: "ScullyCore",
