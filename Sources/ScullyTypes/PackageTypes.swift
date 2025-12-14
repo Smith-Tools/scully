@@ -85,7 +85,7 @@ public struct Target: Codable, Sendable {
 
 // MARK: - Package Information Models
 
-@_exported import SmithDocs
+@_exported import SmithDocExtractor
 
 
 /// Code example extracted from playgrounds or documentation
