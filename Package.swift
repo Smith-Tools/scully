@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "scully",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(
@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.6.0"),
         .package(path: "../smith-rag"),
-        .package(path: "../smith-doc-extractor"),
+        .package(path: "../smith-docc-extractor"),
     ],
     targets: [
         .executableTarget(
@@ -39,7 +39,7 @@ let package = Package(
         .target(
             name: "ScullyTypes",
             dependencies: [
-                .product(name: "SmithDocExtractor", package: "smith-doc-extractor")
+                .product(name: "SmithDoccExtractor", package: "smith-docc-extractor")
             ]
         ),
         .target(
