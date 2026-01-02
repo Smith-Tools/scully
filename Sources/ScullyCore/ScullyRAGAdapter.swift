@@ -1,5 +1,6 @@
 import Foundation
 import SmithRAG
+import SmithRAGCommands
 import Logging
 
 /// Adapter for RAG operations in Scully
@@ -10,9 +11,8 @@ public actor ScullyRAGAdapter {
     
     public init(engine: ScullyEngine) async throws {
         self.engine = engine
-        
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let dbPath = homeDir.appendingPathComponent(".smith/rag/scully.db").path
+
+        let dbPath = RAGDefaults.databasePath(for: RAGDatabase.scully)
         
         // Initialize RAG Engine
         self.ragEngine = try RAGEngine(

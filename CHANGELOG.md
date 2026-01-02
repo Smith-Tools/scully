@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHubFetcher now uses hybrid approach: prefers gh CLI if available, falls back to HTTP API
 - Network operations now have explicit timeouts to prevent indefinite hanging
 - Better error messages for GitHub API failures
+- DocC fetching now routes through `smith-doc-inspector`
+- RAG database paths now use SmithRAG defaults (respects `SMITH_RAG_HOME`)
 
 ### Technical Details
 The hanging issue was caused by:

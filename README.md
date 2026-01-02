@@ -17,6 +17,7 @@ Scully is a comprehensive tool for analyzing Swift packages and accessing their 
 
 - **Dependency Analysis**: Parse Package.swift files and list project dependencies (automatic fallback to `smith` for Xcode/Unknown projects)
 - **Documentation Access**: Fetch documentation from any Swift package
+- **DocC Extraction**: Generic DocC fetch via `smith-doc-inspector`
 - **Example Discovery**: Find code examples and playgrounds
 - **Smart Summaries**: Generate concise documentation overviews
 - **Pattern Extraction**: Identify common usage patterns
@@ -138,11 +139,13 @@ Scully is part of the Smith Tools ecosystem and integrates seamlessly with other
 - **Smith CLI**: Unified Smith Tools interface
 - **Smith Validation**: TCA validation and analysis
 - **Maxwell**: Personal knowledge and discoveries
+- **Smith Doc Inspector**: Generic DocC fetch and repo example discovery
 
 ## Configuration
 
 Scully can be configured through:
 
 - Environment variables (e.g., `GITHUB_TOKEN` for API access)
+- RAG database location via `SMITH_RAG_HOME` (defaults to `~/.smith/rag`)
 - Configuration files in `~/.config/scully/`
 - Command-line flags for one-time settings

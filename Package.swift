@@ -25,7 +25,7 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0"),
         .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.6.0"),
         .package(path: "../smith-rag"),
-        .package(path: "../smith-docc-extractor"),
+        .package(path: "../smith-doc-inspector"),
     ],
     targets: [
         .executableTarget(
@@ -39,7 +39,7 @@ let package = Package(
         .target(
             name: "ScullyTypes",
             dependencies: [
-                .product(name: "SmithDoccExtractor", package: "smith-docc-extractor")
+                .product(name: "SmithDoccExtractor", package: "smith-doc-inspector")
             ]
         ),
         .target(
@@ -56,6 +56,7 @@ let package = Package(
                 .product(name: "Yams", package: "Yams"),
                 .product(name: "SwiftSoup", package: "SwiftSoup"),
                 .product(name: "SmithRAG", package: "smith-rag"),
+                .product(name: "SmithRAGCommands", package: "smith-rag"),
             ]
         ),
         .target(
